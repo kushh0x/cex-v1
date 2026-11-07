@@ -1,0 +1,95 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id          Int       @default(autoincrement())   @id
+  username    String    @unique
+  password    String
+  createdAt   DateTime  @default(now())
+
+  order       Order[]
+  fills       Fills[]
+  balances    UserBalance[]
+}
+
+model Stock {
+  id          Int       @default(autoincrement())   @id
+  name        String
+  Symbol      String    @unique
+
+  order       Order[]
+  fills       Fills[]
+  balances    UserBalance[]
+}
+
+
+model UserBalance {
+  id          Int     @default(autoincrement())     @id
+  userId      Int
+  stockId     Int
+
+  available   Int @default(0) // Money you can spend right now
+  locked      Int @default(0) // Money locked in open limit orders
+
+  user        User   @relation(fields: [userId] , references: [id])
+  stock       Stock   @relation(fields: [stockId], references: [id])
+  @@unique([userId, stockId]) // A user can only have ONE balance row per stock
+
+// The syntax:
+// Because your schema has @@unique([userId, stockId]), Prisma creates a special combined ID called userId_stockId.
+//  You must use this exact name in the where clause.
+}
+
+
+model Order {
+  id          Int       @default(autoincrement())   @id
+  // asset       String    // it is I think same as symbol basically
+  stockId     Int
+  stock       Stock    @relation(fields: [stockId], references: [id])
+  price       Int      // Stored in smallest unit (e.g. 9990 for ₹99.90)
+  quantity    Int
+  type        String   // "LIMIT" or "MARKET"
+  side        String    // "BUY" or "SELL"
+  filledQty   Int       @default(0)
+  status      String    @default("OPEN")
+  fills       Fills[]     // one order can have many fills
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime  @default(now())
+}
+
+
+model Fills {
+  id                Int        @default(autoincrement())     @id
+  quantity          Int
+  side              String
+  type              String
+  price             Int
+  // asset             String
+  stockId           Int
+  userId            Int
+  originalOrderId   Int
+
+  createdAt         DateTime    @default(now())
+  user              User        @relation(fields: [userId], references: [id])
+  stock             Stock       @relation(fields: [stockId], references: [id])
+  originalOrder     Order       @relation(fields: [originalOrderId], references: [id])
+}
+
+// after that we run
+// bunx --bun prisma migrate dev --name cex_init
+// bunx prisma generate (This gives you the TypeScript auto-complete).
+// bunx prisma generate does exactly that. It reads your schema.prisma file
+// and generates the TypeScript types and methods (like .create, .findUnique, .upsert)
+// so that VS Code can auto-complete them and check them for errors.
